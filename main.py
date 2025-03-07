@@ -87,6 +87,9 @@ TOTAL_POWER = 1000# 总功率
 ROUTER_BW = 10000# 路由器带宽
 INTERVAL_TIME = 300 # 间隔时间(ms)
 NEW_CONTAINERS = 1# 新容器数 泊松分布lambda
+SEED = 3407# 随机数种子
+# 好种子：3407
+# 坏种子：
 
 DB_NAME = ''# 数据库名称
 DB_HOST = ''# 数据库主机地址
@@ -114,7 +117,7 @@ def initalizeEnvironment(environment, logger):
 	if environment != '':
 		workload = DFW(NEW_CONTAINERS, 1.5, db)
 	else: # 使用rnd数据集初始化 BWGD2 工作负载
-		workload = BWGD2(NEW_CONTAINERS, 1.5)# NEW_CONTAINERS = 1
+		workload = BWGD2(NEW_CONTAINERS, 1.5, seed = SEED)# NEW_CONTAINERS = 1
 	
 	# Initialize scheduler
 	# 初始化 GOBI 调度器，参数为 energy_latency_ 加上主机数量。

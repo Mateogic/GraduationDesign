@@ -116,7 +116,8 @@ class PreGANPlusRecovery(Recovery):# 继承关系
         # 获取最新数据
         time_data = self.env.stats.time_series
         time_data = normalize_test_time_data(time_data, self.train_time_data)
-        if time_data.shape[0] >= self.model.n_window: time_data = time_data[-self.model.n_window:]
+        if time_data.shape[0] >= self.model.n_window:
+            time_data = time_data[-self.model.n_window:]
         time_data = convert_to_windows(time_data, self.model)[-1]
         
         # 使用历史嵌入运行模型
