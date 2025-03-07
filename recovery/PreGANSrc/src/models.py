@@ -267,6 +267,12 @@ class Transformer_16(nn.Module):
 		self.n = self.n_window * self.n_feats + self.n_hosts * self.n_hosts
 		src_ids = torch.tensor(list(range(self.n_feats))); dst_ids = torch.tensor([self.n_feats] * self.n_feats)
 		self.gat = GAT(dgl.graph((src_ids, dst_ids)), self.n_window, self.n_window)
+		
+		# 预定义历史嵌入处理所需的层，避免重复创建
+		self.hist_attention = nn.MultiheadAttention(self.n_window, num_heads=1, dtype=torch.double)
+		# 预定义融合层，使用double类型
+		self.fusion_layer = nn.Linear(self.n_window * 2, self.n_window).double()
+
 		self.time_encoder = nn.Sequential(
 			nn.Linear(feats, feats * 2 + 1), 
 		)
@@ -297,27 +303,23 @@ class Transformer_16(nn.Module):
 		
 		# 如果有历史嵌入，连接历史嵌入和当前GAT结果
 		if historical_embeddings and len(historical_embeddings) > 0:
-			# 将历史嵌入转换为张量
+			# 将历史嵌入转换为张量，保持double类型
 			hist_tensor = torch.stack(list(historical_embeddings))
-			# 在历史嵌入维度上进行注意力处理
-			hist_attention = nn.MultiheadAttention(gat_t.size(1), num_heads=1)
 			
-			# 将输入转换为float类型
-			gat_t_float = gat_t.unsqueeze(0).float()
-			hist_tensor_float = hist_tensor.float()
+			# 使用预定义的注意力层，无需类型转换
+			gat_t_batch = gat_t.unsqueeze(0)
+			hist_context, _ = self.hist_attention(gat_t_batch, 
+												hist_tensor, 
+												hist_tensor)
 			
-			hist_context, _ = hist_attention(gat_t_float, 
-											hist_tensor_float, 
-											hist_tensor_float)
-			
-			# 将结果转回double类型以匹配其他计算
-			hist_context = hist_context.squeeze(0).double()
+			# 无需类型转换，直接获取结果
+			hist_context = hist_context.squeeze(0)
 			
 			# 连接历史上下文和当前GAT输出
 			enhanced_gat = torch.cat([gat_t, hist_context], dim=1)
-			# 使用线性层融合信息
-			fusion_layer = nn.Linear(enhanced_gat.size(1), gat_t.size(1)).double()
-			gat_t = fusion_layer(enhanced_gat)
+			
+			# 使用预定义的融合层
+			gat_t = self.fusion_layer(enhanced_gat)
 		
 		o = torch.cat((t, gat_t), dim=1)
 		t = o * math.sqrt(self.n_feats)
