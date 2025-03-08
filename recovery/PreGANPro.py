@@ -21,7 +21,7 @@ class PreGANProRecovery(Recovery):# 继承关系
         self.training = training
         self.save_gan = True
         self.model = TransformerPro_16()
-        self.maxLen = self.model.n_window# 历史嵌入和时间窗口大小相同
+        self.maxLen = self.model.n_window * self.model.multi - 1
         self.flag = False  # 用于标记是否清空过accuracy_list和epoch(FPE训练结束之后)
         self.historical_embeddings = deque(maxlen=self.maxLen)  # 保留历史嵌入
         self.load_models()
