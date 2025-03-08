@@ -54,6 +54,7 @@ from scheduler.HSOGOBI2 import HSOGOBI2Scheduler
 # Recovery imports
 from recovery.Recovery import Recovery
 from recovery.PreGAN import PreGANRecovery
+from recovery.PreGANPro import PreGANProRecovery
 from recovery.PreGANPlus import PreGANPlusRecovery
 from recovery.PCFT import PCFTRecovery
 from recovery.DFTM import DFTMRecovery
@@ -80,15 +81,15 @@ parser.add_option("-m", "--mode", action="store", dest="mode", default="0",
 opts, args = parser.parse_args()
 
 # 全局变量
-NUM_SIM_STEPS = 50# 模拟轮数
+NUM_SIM_STEPS = 100# 模拟轮数
 HOSTS = 16 if opts.env == '' else 16# 主机数
 CONTAINERS = HOSTS# 容器数=主机数
 TOTAL_POWER = 1000# 总功率
 ROUTER_BW = 10000# 路由器带宽
 INTERVAL_TIME = 300 # 间隔时间(ms)
 NEW_CONTAINERS = 1# 新容器数 泊松分布lambda
-SEED = 3407# 随机数种子
-# 好种子：3407
+SEED = 2305# 随机数种子
+# 好种子：3407 2305 6666无异常？
 # 坏种子：
 
 DB_NAME = ''# 数据库名称
@@ -125,9 +126,9 @@ def initalizeEnvironment(environment, logger):
 	scheduler = GOBIScheduler('energy_latency_'+str(HOSTS))
 
 	# Initialize recovery
-	# 初始化 PreGANPlus 恢复机制，传入主机数量、环境和训练标志
-	''' Can be PreGANPlusRecovery, PreGANRecovery, CMODLBRecovery, PCFTRecovery, ECLBRecovery, DFTMRecovery, GOBIRecovery '''
-	recovery = PreGANPlusRecovery(HOSTS, environment, training = True)
+	# 初始化 PreGAN 恢复机制，传入主机数量、环境和训练标志
+	''' Can be PreGANProRecovery, PreGANPlusRecovery, PreGANRecovery, CMODLBRecovery, PCFTRecovery, ECLBRecovery, DFTMRecovery, GOBIRecovery '''
+	recovery = PreGANProRecovery(HOSTS, environment, training = True)
 
 	# Initialize Stats
 	# 初始化统计信息对象，传入工作负载、数据中心和调度器。

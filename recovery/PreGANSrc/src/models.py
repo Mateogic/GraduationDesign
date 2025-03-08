@@ -250,13 +250,13 @@ class Disc_50(nn.Module):
 		return probs
 
 
-############## PreGANPlus Models ##############
+############## PreGANPro Models ##############
 
-# Transformer Model
-class Transformer_16(nn.Module):
+# TransformerPro Model
+class TransformerPro_16(nn.Module):
 	def __init__(self):
-		super(Transformer_16, self).__init__()
-		self.name = 'Transformer_16'
+		super(TransformerPro_16, self).__init__()
+		self.name = 'TransformerPro_16'
 		self.lr = 0.0001
 		self.n_hosts = 16
 		feats = 3 * self.n_hosts
@@ -264,28 +264,32 @@ class Transformer_16(nn.Module):
 		self.n_window = 3 # w_size = 5
 		self.n_latent = 10
 		self.n_hidden = 16
+		self.multi = 2# 拓展倍数
 		self.n = self.n_window * self.n_feats + self.n_hosts * self.n_hosts
 		src_ids = torch.tensor(list(range(self.n_feats))); dst_ids = torch.tensor([self.n_feats] * self.n_feats)
 		self.gat = GAT(dgl.graph((src_ids, dst_ids)), self.n_window, self.n_window)
 		
-		# 预定义历史嵌入处理所需的层，避免重复创建
-		self.hist_attention = nn.MultiheadAttention(self.n_window, num_heads=1, dtype=torch.double)
-		# 预定义融合层，使用double类型
-		self.fusion_layer = nn.Linear(self.n_window * 2, self.n_window).double()
+		# 修改这里 - 使用正确的嵌入维度
+		# 对于GAT输出，实际维度是49而不是self.n_window(3)
+		self.embedding_dim = self.n_feats + 1  # 这是GAT输出的实际维度，为49(48+1)，其中的1是额外的全局节点，用于捕获关系
+		# self.hist_attention = nn.MultiheadAttention(self.embedding_dim, num_heads=1, dtype=torch.double)
+		self.hist_attention = nn.MultiheadAttention(self.embedding_dim, num_heads=1, dtype=torch.double)
+		# 对应修改融合层的输入和输出维度
+		self.fusion_layer = nn.Linear(self.embedding_dim * 2, self.embedding_dim).double()
 
 		self.time_encoder = nn.Sequential(
 			nn.Linear(feats, feats * 2 + 1), 
 		)
 		self.pos_encoder = PositionalEncoding(feats * 2 + 1, 0.1, self.n_window)
-		encoder_layers = TransformerEncoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		encoder_layers = TransformerEncoderLayer(d_model=feats * self.multi + 1, nhead=1, dropout=0.1)
 		self.encoder = TransformerEncoder(encoder_layers, 1)
-		a_decoder_layers = TransformerDecoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		a_decoder_layers = TransformerDecoderLayer(d_model=feats * self.multi + 1, nhead=1, dropout=0.1)
 		self.anomaly_decoder = TransformerDecoder(a_decoder_layers, 1)
 		self.anomaly_decoder2 = nn.Sequential(
 			nn.Linear((feats * 2 + 1) * self.n_window * self.n_window, 2 * self.n_hosts), 
 		)
 		self.softm = nn.Softmax(dim=1)
-		p_decoder_layers = TransformerDecoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		p_decoder_layers = TransformerDecoderLayer(d_model=feats * self.multi + 1, nhead=1, dropout=0.1)
 		self.prototype_decoder = TransformerDecoder(p_decoder_layers, 1)
 		self.prototype_decoder2 = nn.Sequential(
 			nn.Linear((feats * 2 + 1) * self.n_window * self.n_window, PROTO_DIM * self.n_hosts), 
@@ -347,3 +351,69 @@ class Transformer_16(nn.Module):
 		if return_embedding:
 			return anomaly_scores, prototypes, current_gat
 		return anomaly_scores, prototypes
+
+############## PreGANPlus Models ##############
+
+# TransformerPlus_16 Model
+class TransformerPlus_16(nn.Module):
+	def __init__(self):
+		super(TransformerPlus_16, self).__init__()
+		self.name = 'TransformerPlus_16'
+		self.lr = 0.0001
+		self.n_hosts = 16
+		feats = 3 * self.n_hosts
+		self.n_feats = 3 * self.n_hosts
+		self.n_window = 3 # w_size = 5
+		self.n_latent = 10
+		self.n_hidden = 16
+		self.n = self.n_window * self.n_feats + self.n_hosts * self.n_hosts
+		src_ids = torch.tensor(list(range(self.n_feats))); dst_ids = torch.tensor([self.n_feats] * self.n_feats)
+		self.gat = GAT(dgl.graph((src_ids, dst_ids)), self.n_window, self.n_window)
+		self.time_encoder = nn.Sequential(
+			nn.Linear(feats, feats * 2 + 1),
+		)
+		self.pos_encoder = PositionalEncoding(feats * 2 + 1, 0.1, self.n_window)
+		encoder_layers = TransformerEncoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		self.encoder = TransformerEncoder(encoder_layers, 1)
+		a_decoder_layers = TransformerDecoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		self.anomaly_decoder = TransformerDecoder(a_decoder_layers, 1)
+		self.anomaly_decoder2 = nn.Sequential(
+			nn.Linear((feats * 2 + 1) * self.n_window * self.n_window, 2 * self.n_hosts),
+		)
+		self.softm = nn.Softmax(dim=1)
+		p_decoder_layers = TransformerDecoderLayer(d_model=feats * 2 + 1, nhead=1, dropout=0.1)
+		self.prototype_decoder = TransformerDecoder(p_decoder_layers, 1)
+		self.prototype_decoder2 = nn.Sequential(
+			nn.Linear((feats * 2 + 1) * self.n_window * self.n_window, PROTO_DIM * self.n_hosts),
+		)
+		self.prototype = [torch.rand(PROTO_DIM, requires_grad=False, dtype=torch.double) for _ in range(3)]
+
+	def encode(self, t, s):
+		t = torch.squeeze(t, 1)
+		graph = torch.cat((t, torch.zeros(self.n_window, 1)), dim=1)
+		gat_t = self.gat(torch.t(graph))
+		gat_t = torch.t(gat_t)
+		o = torch.cat((t, gat_t), dim=1)
+		t = o * math.sqrt(self.n_feats)
+		t = self.pos_encoder(t) # window size, batch size (1), feats (3 metrics * 16 hosts)
+		memory = self.encoder(t)
+		return memory
+
+	def anomaly_decode(self, t, memory):
+		anomaly_scores = self.anomaly_decoder(t, memory)
+		anomaly_scores = self.anomaly_decoder2(anomaly_scores.view(-1)).view(-1, 1, 2)
+		return anomaly_scores
+
+	def prototype_decode(self, t, memory):
+		prototypes = self.prototype_decoder(t, memory)
+		prototypes = self.prototype_decoder2(prototypes.view(-1)).view(-1, PROTO_DIM)
+		return prototypes
+
+	def forward(self, t, s):
+		encoded_t = self.time_encoder(t).unsqueeze(dim=1).expand(-1, self.n_window, -1)
+		t = t.unsqueeze(dim=1)
+		memory = self.encode(t, s)
+		anomaly_scores = self.anomaly_decode(encoded_t, memory)
+		prototypes = self.prototype_decode(encoded_t, memory)
+		return anomaly_scores, prototypes
+

@@ -1,6 +1,7 @@
 # Directory paths
-model_folder = 'recovery/PreGANSrc/checkpoints/'
-model_plus_folder = 'recovery/PreGANSrc/checkpointsplus/'# PreGAN+模型的中间状态和训练结果路径
+model_folder = 'recovery/PreGANSrc/checkpoints/pregan/'
+model_plus_folder = 'recovery/PreGANSrc/checkpoints/preganplus/'# PreGAN+模型的中间状态和训练结果路径
+model_pro_folder = 'recovery/PreGANSrc/checkpoints/preganpro/'# PreGAN+模型的中间状态和训练结果路径
 data_folder = 'recovery/PreGANSrc/data/'
 plot_folder = 'recovery/PreGANSrc/plots'# 绘图结果
 data_filename = 'time_series.npy'# 离线训练FPE模型时 和 在线微调FPE时加载

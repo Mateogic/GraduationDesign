@@ -8,21 +8,19 @@ from .Recovery import *
 from .PreGANSrc.src.constants import *
 from .PreGANSrc.src.utils import *
 from .PreGANSrc.src.train import *
-from collections import deque
 
 class PreGANPlusRecovery(Recovery):# 继承关系
     def __init__(self, hosts, env, training = False):# 构造函数类实例化时自动调用
         super().__init__()
-        self.model_name = f'Transformer_{hosts}'
+        self.model_name = f'TransformerPlus_{hosts}'
         self.gen_name = f'Gen_{hosts}'
         self.disc_name = f'Disc_{hosts}'
         self.hosts = hosts
         self.env_name = 'simulator' if env == '' else 'framework'
         self.training = training
         self.save_gan = True
-        self.maxlen = 5
+        self.model = TransformerPlus_16()
         self.flag = False  # 用于标记是否清空过accuracy_list和epoch(FPE训练结束之后)
-        self.historical_embeddings = deque(maxlen=self.maxlen)  # 存储最多100个历史嵌入
         self.load_models()
 
     def load_models(self):# 在构造函数中调用此函数加载模型
@@ -35,7 +33,7 @@ class PreGANPlusRecovery(Recovery):# 继承关系
         # self.model.lr /= 5
         # Load generator and discriminator
         self.gen, self.disc, self.gopt, self.dopt, self.epoch, self.accuracy_list = \
-            load_gan(model_plus_folder, f'{self.env_name}_{self.gen_name}.ckpt', f'{self.env_name}_{self.disc_name}.ckpt', self.gen_name, self.disc_name) 
+            load_gan(model_plus_folder, f'{self.env_name}_{self.gen_name}.ckpt', f'{self.env_name}_{self.disc_name}.ckpt', self.gen_name, self.disc_name)
         self.gan_plotter = GAN_Plotter(self.env_name, self.gen_name, self.disc_name, self.training)
         # GAN is always tuned
         self.ganloss = nn.BCELoss()
@@ -112,23 +110,13 @@ class PreGANPlusRecovery(Recovery):# 继承关系
         self.gan_plotter.plot_test(hosts_from, self.epoch)
         return list(decision_dict.items())
 
-    def run_encoder(self, schedule_data):
-        # 获取最新数据
+    def run_encoder(self, schedule_data):# FPE编码器=self.model
+        # Get latest data from Stat
         time_data = self.env.stats.time_series
         time_data = normalize_test_time_data(time_data, self.train_time_data)
-        if time_data.shape[0] >= self.model.n_window:
-            time_data = time_data[-self.model.n_window:]
+        if time_data.shape[0] >= self.model.n_window: time_data = time_data[-self.model.n_window:]
         time_data = convert_to_windows(time_data, self.model)[-1]
-        
-        # 使用历史嵌入运行模型
-        anomaly, prototype, current_gat = self.model(time_data, schedule_data, 
-                                                historical_embeddings=self.historical_embeddings,
-                                                return_embedding=True)
-        
-        # 保存当前GAT结果到历史嵌入
-        self.historical_embeddings.append(current_gat.detach().clone())
-        
-        return anomaly, prototype
+        return self.model(time_data, schedule_data)
 
     def run_model(self, time_series, original_decision):
         # 清空训练FPE时的accuracy_list
@@ -136,11 +124,10 @@ class PreGANPlusRecovery(Recovery):# 继承关系
             self.accuracy_list = []
             self.epoch = 0
             self.flag = True
-            self.historical_embeddings = deque(maxlen=self.maxlen)  # 重置历史嵌入队列
         # Run encoder
         schedule_data = torch.tensor(self.env.scheduler.result_cache).double()# S 16*16
         anomaly, prototype = self.run_encoder(schedule_data)# D(16*1*2, 预测每个主机是否故障), P
-        # If no anomaly predicted, return original decision 
+        # If no anomaly predicted, return original decision
         for a in anomaly:
             prediction = torch.argmax(a).item() # 找到最大值所在索引
             if prediction == 1: # 有故障，进入GAN尝试生成新决策
