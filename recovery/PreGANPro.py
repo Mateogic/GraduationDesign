@@ -32,6 +32,8 @@ class PreGANProRecovery(Recovery):# 继承关系
             load_model(model_pro_folder, f'{self.env_name}_{self.model_name}.ckpt', self.model_name)
         # Train the model if not trained (offline training same as PreGAN)
         if self.epoch == -1: self.train_model()
+        # Freeze encoder
+        freeze(self.model)
         # Reduce lr of encoder
         # self.model.lr /= 5
         # Load generator and discriminator
@@ -93,6 +95,12 @@ class PreGANProRecovery(Recovery):# 继承关系
         probs = self.disc(schedule_data, new_schedule_data)# D = Disc(S,N)
         self.gan_plotter.new_better(probs[1] >= probs[0])
         if probs[0] > probs[1]: # original better
+            # 解冻FPE模型
+            unfreeze(self.model)
+            # 执行微调
+            self.tune_model()
+            # 重新冻结FPE模型
+            freeze(self.model)
             return original_decision
         # Form new decision
         host_alloc = []; container_alloc = [-1] * len(self.env.hostlist)
@@ -141,7 +149,7 @@ class PreGANProRecovery(Recovery):# 继承关系
         # Run encoder
         schedule_data = torch.tensor(self.env.scheduler.result_cache).double()# S 16*16
         anomaly, prototype = self.run_encoder(schedule_data)# D(16*1*2, 预测每个主机是否故障), P
-        # If no anomaly predicted, return original decision 
+        # If no anomaly predicted, return original decision
         for a in anomaly:
             prediction = torch.argmax(a).item() # 找到最大值所在索引
             if prediction == 1: # 有故障，进入GAN尝试生成新决策
@@ -157,5 +165,5 @@ class PreGANProRecovery(Recovery):# 继承关系
         # Pass through GAN self.epoch+=1(预测有故障时)
         self.train_gan(embedding, schedule_data)# Epoch 76,       GLoss = 0.23239809802868833,    DLoss = 0.23744803135508769
         # Tune Model
-        self.tune_model()# Epoch 76,        Loss = 17.7339489329655,        ALoss = 18.193004121730326,     TLoss = -0.45905518876482454
+        # self.tune_model()# 每次预测到故障均执行在线微调
         return self.recover_decision(embedding, schedule_data, original_decision)# 在线推理

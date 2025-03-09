@@ -64,7 +64,10 @@ def mean_confidence_interval(data, confidence=0.90):
 PATH = 'all_datasets/' + env + '/'
 SAVE_PATH = 'results/' + env + '/'
 
-Models = ['PreGANPro', 'PreGANPlus', 'PreGAN', 'CMODLB', 'PCFT', 'ECLB', 'DFTM', 'GOBI']
+# Models = ['PreGANPlus1', 'PreGAN', 'CMODLB', 'PCFT', 'ECLB', 'DFTM', 'GOBI']
+Models = ['PreGANPro', 'PreGANPlus', 'PreGAN']
+# Models = ['1-PreGAN-old','2-PreGANPro-old', '3-PreGANPro-old', '4-PreGANPro-old', \
+# 		  '1-PreGAN-new','2-PreGANPro-new', '3-PreGANPro-new', '4-PreGANPro-new']
 xLabel = 'Execution Time (minutes)'
 Colors = ['red', 'blue', 'green', 'orange', 'magenta', 'pink', 'cyan', 'maroon', 'grey', 'purple', 'navy']
 apps = ['yolo', 'pocketsphinx', 'aeneas']
