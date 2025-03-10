@@ -53,13 +53,15 @@ from scheduler.HSOGOBI2 import HSOGOBI2Scheduler
 
 # Recovery imports
 from recovery.Recovery import Recovery
-from recovery.PreGAN import PreGANRecovery
-from recovery.PreGANPro import PreGANProRecovery
-from recovery.PreGANPlus import PreGANPlusRecovery
 from recovery.PCFT import PCFTRecovery
 from recovery.DFTM import DFTMRecovery
 from recovery.ECLB import ECLBRecovery
 from recovery.CMODLB import CMODLBRecovery
+from recovery.PreGAN import PreGANRecovery
+from recovery.PreGANPro import PreGANProRecovery
+from recovery.PreGANPlus import PreGANPlusRecovery
+from recovery.PreDiffusion import PreDiffusionRecovery
+
 
 # Auxiliary imports
 from stats.Stats import *
@@ -127,8 +129,8 @@ def initalizeEnvironment(environment, logger):
 
 	# Initialize recovery
 	# 初始化 PreGAN 恢复机制，传入主机数量、环境和训练标志
-	''' Can be PreGANProRecovery, PreGANPlusRecovery, PreGANRecovery, CMODLBRecovery, PCFTRecovery, ECLBRecovery, DFTMRecovery, GOBIRecovery '''
-	recovery = PreGANProRecovery(HOSTS, environment, training = True)
+	''' Can be PreDiffusionRecovery PreGANProRecovery, PreGANPlusRecovery, PreGANRecovery, CMODLBRecovery, PCFTRecovery, ECLBRecovery, DFTMRecovery, GOBIRecovery '''
+	recovery = PreDiffusionRecovery(HOSTS, environment, training = True)
 
 	# Initialize Stats
 	# 初始化统计信息对象，传入工作负载、数据中心和调度器。
