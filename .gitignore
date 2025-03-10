@@ -145,3 +145,7 @@ graphernew.py
 # checkpoitns
 /recovery/PreGANSrc/checkpoints
 /recovery/PreDiffusionSrc/checkpoints
+
+# plots
+recovery/PreGANSrc/plots
+recovery/PreDiffusionSrc/plots
