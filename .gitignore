@@ -139,9 +139,6 @@ todo.txt
 *.pdf
 graphernew.py
 
-# DDPM
-/DDPM
-
 # checkpoitns
 /recovery/PreGANSrc/checkpoints
 /recovery/PreDiffusionSrc/checkpoints

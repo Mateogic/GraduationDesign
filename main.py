@@ -83,7 +83,7 @@ parser.add_option("-m", "--mode", action="store", dest="mode", default="0",
 opts, args = parser.parse_args()
 
 # 全局变量
-NUM_SIM_STEPS = 100# 模拟轮数
+NUM_SIM_STEPS = 200# 模拟轮数
 HOSTS = 16 if opts.env == '' else 16# 主机数
 CONTAINERS = HOSTS# 容器数=主机数
 TOTAL_POWER = 1000# 总功率
@@ -91,7 +91,7 @@ ROUTER_BW = 10000# 路由器带宽
 INTERVAL_TIME = 300 # 间隔时间(ms)
 NEW_CONTAINERS = 1# 新容器数 泊松分布lambda
 SEED = 2305# 随机数种子
-# 好种子：3407 2305 6666无异常？
+# 好种子：3407 2305 6666无异常
 # 坏种子：
 
 DB_NAME = ''# 数据库名称

@@ -65,7 +65,7 @@ PATH = 'all_datasets/' + env + '/'
 SAVE_PATH = 'results/' + env + '/'
 
 # Models = ['PreGANPlus1', 'PreGAN', 'CMODLB', 'PCFT', 'ECLB', 'DFTM', 'GOBI']
-Models = ['PreGANPro', 'PreGANPlus', 'PreGAN']
+Models = ['PreDiffusion', 'PreGANPro', 'PreGANPlus', 'PreGAN']
 # Models = ['1-PreGAN-old','2-PreGANPro-old', '3-PreGANPro-old', '4-PreGANPro-old', \
 # 		  '1-PreGAN-new','2-PreGANPro-new', '3-PreGANPro-new', '4-PreGANPro-new']
 xLabel = 'Execution Time (minutes)'

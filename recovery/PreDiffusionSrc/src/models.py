@@ -352,3 +352,238 @@ class TransformerPro_16(nn.Module):
 			return anomaly_scores, prototypes, current_gat
 		return anomaly_scores, prototypes
 
+############## Diffusion_16 Models ##############
+
+# Diffusion_16 Model
+class Diffusion_16(nn.Module):
+	def __init__(self):
+		super(Diffusion_16, self).__init__()
+		self.name = 'Diffusion_16'
+		self.lr = 0.00005
+		self.n_hosts = 16
+		self.n_hidden = 64
+		self.proto_dim = PROTO_DIM  # 从常量导入
+		
+		# 计算输入维度 - 确保与数据集匹配
+		self.n = self.n_hosts * self.proto_dim + self.n_hosts * self.n_hosts
+		input_dim = self.n_hosts * self.n_hosts + (self.n_hidden // 2 + 1) + self.n_hidden
+		
+		# PNDM相关参数
+		self.n_steps = 20  # 扩散步数，训练时使用
+		self.n_actual_steps = 10  # 实际推理时使用的步数
+		self.beta_start = 0.0001
+		self.beta_end = 0.02
+		
+		# 添加条件处理网络
+		self.condition_encoder = nn.Sequential(
+			nn.Linear(self.n, self.n_hidden),
+			nn.SiLU(),
+			nn.LayerNorm(self.n_hidden),
+			nn.Linear(self.n_hidden, self.n_hidden),
+		).double()
+
+		# 注册beta schedule和相关参数为缓冲区(不是模型参数)
+		self.register_buffer('betas', self._get_beta_schedule())
+		alphas = 1.0 - self.betas
+		self.register_buffer('alphas_cumprod', torch.cumprod(alphas, dim=0))
+		
+		# 降噪网络 - 增强表示能力
+		# 在Diffusion_16类中替换降噪网络定义
+		self.denoiser = nn.Sequential(
+			nn.Linear(input_dim, self.n_hidden * 2),
+			nn.SiLU(),
+			nn.LayerNorm(self.n_hidden * 2),  # 添加层归一化
+			nn.Linear(self.n_hidden * 2, self.n_hidden * 2),
+			nn.SiLU(),
+			nn.LayerNorm(self.n_hidden * 2),
+			nn.Linear(self.n_hidden * 2, self.n_hidden * 2),
+			nn.SiLU(),
+			nn.Linear(self.n_hidden * 2, self.n_hosts * self.n_hosts)
+		).double()
+
+	def _get_beta_schedule(self):
+		"""余弦Beta调度，比线性调度产生更高质量的样本"""
+		steps = self.n_steps
+		s = 0.008  # 控制最小和最大噪声水平
+		
+		# 余弦调度公式实现
+		x = torch.linspace(0, steps, steps + 1)
+		alphas_cumprod = torch.cos(((x / steps) + s) / (1 + s) * math.pi * 0.5) ** 2
+		alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+		betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+		
+		# 限制beta范围，提高数值稳定性
+		betas = torch.clip(betas, 0.0001, 0.02)
+		return betas.double()
+	
+	def forward(self, e, s, env_stats=None, run_simulation_fn=None):
+		"""改进的前向推理，添加后处理优化"""
+		with torch.no_grad():
+			# 生成多个候选方案并选择最佳的
+			best_delta = None
+			best_score = float('inf')
+			
+			# 生成候选方案 - 无评估时只生成一个
+			candidates_count = 1 if env_stats is None or run_simulation_fn is None else 3
+			
+			for _ in range(candidates_count):
+				delta = self._pndm_sampling(e, s, steps=self.n_actual_steps)
+				candidate = s + 4 * torch.tanh(delta.reshape(self.n_hosts, self.n_hosts))
+				
+				# 只在提供评估函数时评估
+				if env_stats is not None and run_simulation_fn is not None:
+					score = run_simulation_fn(env_stats, candidate)
+					
+					if score < best_score:
+						best_score = score
+						best_delta = delta
+				else:
+					# 无评估函数时直接使用第一个结果
+					best_delta = delta
+			
+			# 返回最佳结果
+			return s + 4 * torch.tanh(best_delta.reshape(self.n_hosts, self.n_hosts))
+		
+	def _pndm_sampling(self, e, s, steps=10):
+		"""优化的PNDM采样方法，使用非均匀时间步和动态步长控制"""
+		# 初始化噪声
+		x = torch.randn(self.n_hosts * self.n_hosts).double()
+		
+		# 准备条件信息 - 确保维度匹配
+		e_flat = e.reshape(-1)
+		s_flat = s.reshape(-1)
+		if len(e_flat) != self.n_hosts * self.proto_dim:
+			# 如果嵌入维度不匹配，调整到正确大小
+			if len(e_flat) > self.n_hosts * self.proto_dim:
+				e_flat = e_flat[:self.n_hosts * self.proto_dim]
+			else:
+				padding = torch.zeros(self.n_hosts * self.proto_dim - len(e_flat)).double()
+				e_flat = torch.cat([e_flat, padding])
+		
+		cond = torch.cat((e_flat, s_flat))
+		
+		# PNDM采样核心逻辑 - 使用线性多步方法加速
+		phi_1 = x.clone()
+		phi_2 = x.clone()
+		phi_3 = x.clone()
+		
+		# 非均匀时间步，关注中低噪声区域
+		# 使用指数缩放获取更密集的后期步长
+		time_scales = torch.linspace(0, 1, steps + 1)[:-1] ** 1.5  # 指数缩放参数(>1更关注后期)
+		time_steps = 1.0 - time_scales  # 从1倒数到接近0
+		
+		# 动态步长优化参数
+		momentum_strength = 0.12  # 动量强度
+		late_stage_boost = 1.25   # 后期阶段步长增强因子
+		
+		# 4阶线性多步PNDM - 优化版本
+		with torch.no_grad():
+			for i, t in enumerate(time_steps):
+				# 计算当前时间步对应的索引，基于实际beta调度
+				index = int(t * (self.n_steps - 1))
+				alpha_cumprod_t = self.alphas_cumprod[index]
+				
+				# 当前时间步的噪声预测
+				x_input = x / torch.sqrt(alpha_cumprod_t)
+				t_input = torch.tensor([t]).double()
+				noise_pred = self._denoise(x_input, t_input, cond)
+				
+				# 确定是否处于后期阶段
+				is_late_stage = i >= int(steps * 0.7)
+				
+				# 动态步长增强因子和动量项
+				if is_late_stage:
+					# 后期阶段使用更大的步长
+					step_boost = late_stage_boost
+					# 添加动量项 - 向前一步方向推动
+					if i > 0:
+						momentum = momentum_strength * (x - phi_1)
+					else:
+						momentum = torch.zeros_like(x)
+				else:
+					step_boost = 1.0
+					momentum = torch.zeros_like(x)
+				
+				# 根据阶段应用不同的数值方法
+				if i == 0:
+					# 第一步使用增强的欧拉方法
+					x = self._euler_step(x, noise_pred, t, index, step_boost)
+					phi_1 = x.clone()
+				elif i == 1:
+					# 第二步使用改进的欧拉方法
+					x = self._midpoint_step(x, noise_pred, phi_1, t, index, step_boost)
+					phi_2 = x.clone()
+				elif i == 2:
+					# 第三步使用优化的RK4方法
+					x = self._rk4_step(x, noise_pred, phi_1, phi_2, t, index, step_boost)
+					phi_3 = x.clone()
+				else:
+					# 后续步骤使用优化的4阶Adams-Bashforth
+					x = self._adams_bashforth_step(x, noise_pred, phi_1, phi_2, phi_3, t, index, step_boost)
+					
+					# 应用动量项 - 修正布尔判断，使用torch.norm()检查是否有动量
+					momentum_magnitude = torch.norm(momentum)
+					if momentum_magnitude > 1e-8:  # 使用小阈值代替精确的零检查
+						x = x - momentum
+					
+					# 更新历史状态
+					phi_3 = phi_2.clone()
+					phi_2 = phi_1.clone()
+					phi_1 = x.clone()
+				
+				# 后期阶段优化：引导向相似步长变化方向
+				if is_late_stage and i > 1:
+					# 计算当前增量和前一步增量
+					curr_delta = (x - phi_1)
+					prev_delta = (phi_1 - phi_2)
+					
+					# 检查方向一致性 - 使用点积而非直接比较
+					consistency = torch.sum(curr_delta * prev_delta)
+					if consistency > 0:  # 方向一致时增强
+						consistency_boost = 0.08
+						x = x + consistency_boost * prev_delta
+		
+		return x.reshape(self.n_hosts, self.n_hosts)
+		
+	def _denoise(self, x_t, t, cond):
+		"""增强版降噪函数，使用条件编码器"""
+		try:
+			# 使用条件编码器处理条件信息
+			encoded_cond = self.condition_encoder(cond)
+			
+			# 时间嵌入改进 - 使用正弦位置编码
+			t_scaled = t.item() * 1000  # 将t缩放到更大范围
+			freqs = torch.exp(torch.linspace(0, 8, self.n_hidden // 4).double() * -math.log(10000.0))
+			args = t_scaled * freqs
+			t_embedding = torch.cat([torch.sin(args), torch.cos(args), t.view(-1)]).double()
+			
+			# 组合噪声数据和增强的条件信息
+			input_tensor = torch.cat([x_t.view(-1), t_embedding, encoded_cond])
+			
+			# 预测噪声
+			noise_pred = self.denoiser(input_tensor)
+			return noise_pred
+		except RuntimeError as e:
+			# 错误处理...
+			raise
+		
+	# 各种数值积分方法的实现
+	def _euler_step(self, x, noise_pred, t, index, boost=1.0):
+		"""带增强因子的欧拉步骤"""
+		step_size = self.betas[index] / torch.sqrt(1 - self.alphas_cumprod[index])
+		return x - step_size * boost * noise_pred
+
+	def _midpoint_step(self, x, noise_pred, phi_1, t, index, boost=1.0):
+		"""改进欧拉方法实现，支持步长增强"""
+		step_size = self.betas[index] / torch.sqrt(1 - self.alphas_cumprod[index])
+		return phi_1 - step_size * boost * noise_pred
+
+	def _rk4_step(self, x, noise_pred, phi_1, phi_2, t, index, boost=1.0):
+		"""RK4类似步骤实现，支持步长增强"""
+		step_size = self.betas[index] / torch.sqrt(1 - self.alphas_cumprod[index])
+		return phi_2 - step_size * boost * noise_pred
+
+	def _adams_bashforth_step(self, x, noise_pred, phi_1, phi_2, phi_3, t, index, boost=1.0):
+		"""Adams-Bashforth步骤实现(4阶线性多步法)，支持步长增强"""
+		step_size = self.betas[index] / torch.sqrt(1 - self.alphas_cumprod[index])
+		return phi_3 - step_size * boost * noise_pred

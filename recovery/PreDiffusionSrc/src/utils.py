@@ -116,6 +116,29 @@ def unfreeze(model):
 	for name, p in model.named_parameters():
 		p.requires_grad = True
 
+def load_diffusion_model(folder, fname, modelname):
+    """加载扩散模型"""
+    path = os.path.join(folder, fname)
+    model = eval(modelname + '()')
+    optimizer = torch.optim.Adam(model.parameters(), lr=model.lr)
+    epoch = -1
+    accuracy_list = []
+    
+    if os.path.exists(path):
+        try:
+            checkpoint = torch.load(path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            epoch = checkpoint['epoch']
+            accuracy_list = checkpoint['accuracy_list']
+            print(f"加载扩散模型成功: {modelname}, 轮次: {epoch}")
+        except Exception as e:
+            print(f"加载扩散模型失败: {e}")
+    else:
+        print(f"扩散模型文件不存在: {path}，将使用未训练模型")
+    
+    return model, None, optimizer, None, epoch, accuracy_list
+
 class color:
 	HEADER = '\033[95m'
 	BLUE = '\033[94m'
