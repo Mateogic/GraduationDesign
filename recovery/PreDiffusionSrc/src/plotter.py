@@ -209,7 +209,7 @@ class GAN_Plotter():
 		fig.savefig(self.prefix2 + f'{name1}_{name2}.pdf', pad_inches=0)
 		plt.close()
 
-	def plot3(self, name1, name2, name3, data1, data2, data3, smooth = True, xlabel='Iteration'):
+	def plot3(self, name1, name2, name3, data1, data2, data3, smooth = True, xlabel='Epoch'):
 		if smooth: data1, data2, data3 = smoother(data1, 3), smoother(data2, 3), smoother(data3,2)
 		fig, ax = plt.subplots(1, 1, figsize=(3,1.9))
 		ax.set_ylabel(name1); ax.set_xlabel(xlabel)

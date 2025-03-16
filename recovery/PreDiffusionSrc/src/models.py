@@ -388,7 +388,6 @@ class Diffusion_16(nn.Module):
 		self.register_buffer('alphas_cumprod', torch.cumprod(alphas, dim=0))
 		
 		# 降噪网络 - 增强表示能力
-		# 在Diffusion_16类中替换降噪网络定义
 		self.denoiser = nn.Sequential(
 			nn.Linear(input_dim, self.n_hidden * 2),
 			nn.SiLU(),
