@@ -36,10 +36,6 @@ class PreDiffusionRecovery(Recovery):# 继承关系
             load_model(model_folder, f'{self.env_name}_{self.model_name}.ckpt', self.model_name)
         # 如未训练，先训练模型
         if self.epoch == -1: self.train_model()
-        # 冻结编码器
-        freeze(self.model)
-
-
         # 加载Diffusion模型
         print(f"正在加载Diffusion模型: {self.env_name}_Diffusion_{self.hosts}.ckpt")
         self.gen, _, self.gopt, _, self.diff_epoch, self.diff_accuracy_list = \
@@ -108,14 +104,8 @@ class PreDiffusionRecovery(Recovery):# 继承关系
         # 生成新调度
         new_schedule_data, new_score, orig_score, is_better = self.generate_schedule(embedding, schedule_data)
         
-        # 如果新调度性能更差，微调FPE模型并返回原决策
+        # 如果新调度性能更差，返回原决策
         if not is_better:
-            # 解冻FPE模型
-            unfreeze(self.model)
-            # 执行微调
-            self.tune_model()
-            # 重新冻结FPE模型
-            freeze(self.model)
             return original_decision
         
         # 如果新调度更好，形成新决策
@@ -186,7 +176,8 @@ class PreDiffusionRecovery(Recovery):# 继承关系
                      for i, p in enumerate(prototype)]
         self.gan_plotter.update_class_detected(get_classes(embedding, self.model))
         embedding = torch.stack(embedding)
-
+        if self.epoch > 20:
+            self.tune_model()# epoch大于20之后在线微调FPE
         # 直接返回恢复决策
         return self.recover_decision(embedding, schedule_data, original_decision)
 
