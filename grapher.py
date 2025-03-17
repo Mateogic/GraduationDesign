@@ -65,7 +65,7 @@ PATH = 'all_datasets/' + env + '/'
 SAVE_PATH = 'results/' + env + '/'
 
 # Models = ['PreGANPlus1', 'PreGAN', 'CMODLB', 'PCFT', 'ECLB', 'DFTM', 'GOBI']
-Models = ['PreDiffusion', 'PreGANPro', 'PreGANPlus', 'PreGAN']
+Models = ['PreDiffusion', 'PreGANPro', 'PreGANPlus', 'CMODLB', 'PCFT', 'ECLB', 'DFTM', 'GOBI']
 # Models = ['1-PreGAN-old','2-PreGANPro-old', '3-PreGANPro-old', '4-PreGANPro-old', \
 # 		  '1-PreGAN-new','2-PreGANPro-new', '3-PreGANPro-new', '4-PreGANPro-new']
 xLabel = 'Execution Time (minutes)'
@@ -74,7 +74,7 @@ apps = ['yolo', 'pocketsphinx', 'aeneas']
 
 yLabelsStatic = ['Average Interval Energy (Kilowatt-hr)', 'Average Response Time (seconds)', 'Average CPU Utilization (%)',\
 				 'Average RAM Utilization (%)', 'Interval Allocation Time (seconds)', 'Number of Task migrations',\
-				 'Fraction of total SLA Violations', 'Fraction of SLA Violations per application']
+				 'Fraction of total SLA Violations', 'Fraction of SLA Violations per application', 'Number of completed tasks per application']
 # yLabelsStatic = ['Total Energy (Kilowatt-hr)', 'Average Energy (Kilowatt-hr)', 'Interval Energy (Kilowatt-hr)', 'Average Interval Energy (Kilowatt-hr)',\
 # 	'Number of completed tasks', 'Number of completed tasks per interval', 'Average Response Time (seconds)', 'Total Response Time (seconds)',\
 # 	'Average Migration Time (seconds)', 'Total Migration Time (seconds)', 'Number of Task migrations', 'Average Wait Time (intervals)', 'Average Wait Time (intervals) per application',\
@@ -102,7 +102,7 @@ for model in load_models:
 			if fnmatch.fnmatch(file, '*.pk'):
 				print(file)
 				with open(PATH + model2 + '/' + file, 'rb') as handle:
-				    stats = pickle.load(handle)
+					stats = pickle.load(handle)
 				all_stats_list.append(stats)
 				break
 	except:
@@ -565,3 +565,160 @@ for ylabel in yLabelsStatic:
 	plt.legend()
 	plt.savefig(SAVE_PATH+"Series-"+ylabel.replace(' ', '_')+".pdf")
 	plt.clf()
+
+
+
+##### RAINCLOUD PLOTS #####
+# ...existing code...
+
+##### RAINCLOUD PLOTS #####
+
+# print(color.BOLD+"Creating Raincloud Plots"+color.ENDC)
+# raincloud_metrics = ['Average Response Time (seconds)', 'Average CPU Utilization (%)', 
+#                     'Average RAM Utilization (%)', 'Interval Allocation Time (seconds)']
+
+# for ylabel in raincloud_metrics:
+#     if Models[0] not in Data[ylabel]: continue
+#     print(color.FAIL+ylabel+color.ENDC)
+    
+#     # 准备数据框格式
+#     all_data = []
+#     for model in Models:
+#         if isinstance(Data[ylabel][model], np.ndarray):
+#             model_data = Data[ylabel][model]
+#             # 过滤掉 NaN 和无穷大值
+#             model_data = model_data[np.isfinite(model_data)]
+#             # 添加到数据列表
+#             for value in model_data:
+#                 all_data.append({"Model": model, "Value": value})
+    
+#     # 如果没有有效数据，跳过
+#     if not all_data:
+#         continue
+        
+#     # 创建DataFrame
+#     df = pd.DataFrame(all_data)
+    
+#     # 设置更大的图形尺寸以容纳raincloud图
+#     fig_width = size[0] * 1.8
+#     fig_height = size[1] * 1.2
+#     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    
+#     # 为了美观，让每个模型使用自己的颜色
+#     model_colors = {Models[i]: Colors[i] for i in range(len(Models))}
+    
+#     # 绘制小提琴部分 (概率密度)，降低不透明度以便更好地看到点
+#     sns.violinplot(x="Model", y="Value", data=df, palette=model_colors,
+#                 scale="width", inner=None, ax=ax, alpha=0.6)
+    
+#     # 创建自定义散点，使用无填充圆圈
+#     for i, model in enumerate(Models):
+#         model_data = df[df['Model'] == model]['Value'].values
+#         if len(model_data) > 0:
+#             # 添加水平抖动
+#             x = np.random.normal(i, 0.08, size=len(model_data))
+#             ax.scatter(x, model_data, 
+#                       s=25,  # 增大点的大小
+#                       facecolors='white',  # 白色填充
+#                       edgecolors=Colors[i],  # 使用模型对应的颜色作为边框
+#                       linewidths=1.5,  # 增加边框宽度增强可见性
+#                       alpha=0.9,  # 高不透明度
+#                       zorder=3)  # 确保点在最上层
+    
+#     # 添加箱线图部分 (统计摘要)
+#     sns.boxplot(x="Model", y="Value", data=df, width=0.15, 
+#                 boxprops={'zorder': 2, 'facecolor': 'none'}, 
+#                 showmeans=True, meanprops={"marker":"D", "markerfacecolor":"white", "markeredgecolor":"black", "markersize":6},
+#                 ax=ax, fliersize=0)  # fliersize=0 隐藏异常值以避免与散点冲突
+    
+#     # 设置标签
+#     ax.set_xlabel('Model')
+#     ax.set_ylabel(ylabel.replace('%', '\%').replace('SLA', 'SLO'))
+#     ax.set_xticklabels(Models, rotation=rot)
+    
+#     # 调整y轴范围以显示所有数据
+#     lower_bound = df['Value'].quantile(0.01)  # 1% 分位数作为下界
+#     upper_bound = df['Value'].quantile(0.99)  # 99% 分位数作为上界
+#     y_padding = (upper_bound - lower_bound) * 0.1  # 10% 的填充
+#     ax.set_ylim(max(0, lower_bound - y_padding), upper_bound + y_padding)
+    
+#     # 添加网格线以提高可读性
+#     ax.grid(axis='y', linestyle='--', alpha=0.3)
+    
+#     plt.tight_layout()
+#     plt.savefig(SAVE_PATH+'Raincloud-'+ylabel.replace(' ', '_')+".pdf")
+#     plt.close(fig)  # 用close替代clf以避免内存泄漏
+
+# # 添加在BOX PLOTS部分结束后、LINE PLOTS部分之前
+
+##### COMBINED BOX PLOTS #####
+
+print(color.BOLD+"Creating Combined Box Plots"+color.ENDC)
+
+# 要绘制的四个指标
+combined_metrics = [
+	'Average Interval Energy (Kilowatt-hr)', 
+	'Average Response Time (seconds)',
+	'Average CPU Utilization (%)',
+	'Average RAM Utilization (%)'
+]
+
+# 创建2x2的子图
+fig, axes = plt.subplots(2, 2, figsize=(size[0]*2.5, size[1]*2.5))
+axes = axes.flatten()
+
+# 首先确保我们有正确的数据 - 重新处理关键指标的数据
+combined_data = {}
+for ylabel in combined_metrics:
+	combined_data[ylabel] = {}
+	for model in Models:
+		stats = all_stats[model]
+		if ylabel == 'Average Interval Energy (Kilowatt-hr)':
+			d = np.array([i['energytotalinterval'] for i in stats.metrics])/1000 if stats else np.array([0])
+			d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
+			# 使用与单独箱线图相同的处理方式
+			combined_data[ylabel][model] = d[d2>0]/d2[d2>0] if len(d[d2>0]) > 0 else np.array([0])
+		elif ylabel == 'Average Response Time (seconds)':
+			# 对响应时间使用与单独箱线图相同的处理方式
+			d = np.array([max(0, i['avgresponsetime']) for i in stats.metrics]) if stats else np.array([0])
+			d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
+			combined_data[ylabel][model] = d[d2>0] if len(d[d2>0]) > 0 else np.array([0])
+		else:
+			# 对于其他指标，直接使用原始数据
+			combined_data[ylabel][model] = Data[ylabel][model]
+
+# 子图标签
+subplot_labels = ['(a)', '(b)', '(c)', '(d)']
+
+for i, ylabel in enumerate(combined_metrics):
+	if Models[0] not in combined_data[ylabel]: 
+		continue
+	
+	ax = axes[i]
+	values = [combined_data[ylabel][model] for model in Models]
+	
+	# 绘制箱线图，保持统一样式
+	bp = ax.boxplot(values, positions=np.arange(len(values)), notch=False, 
+				showmeans=True, widths=0.65, 
+				meanprops=dict(marker='.', markeredgecolor='black', markerfacecolor='black'), 
+				showfliers=False)
+	
+	# 确保响应时间图的y轴从0开始
+	if ylabel == 'Average Response Time (seconds)':
+		ax.set_ylim(bottom=0)
+	
+
+	ax.set_xlabel(f'{subplot_labels[i]}')
+	ax.set_xticks(range(len(values)))
+	ax.set_xticklabels(Models, rotation=rot)
+
+	
+	# 设置y轴标签
+	ax.set_ylabel(ylabel.replace('%', '\%').replace('SLA', 'SLO'))
+	
+	# 添加网格线以提高可读性
+	ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+plt.tight_layout()
+plt.savefig(SAVE_PATH+'Combined_Box_Plots.pdf')
+plt.close(fig)
