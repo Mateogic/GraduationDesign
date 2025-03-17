@@ -182,7 +182,8 @@ class GAN_Plotter():
 		self.new_score_better.append((ns <= os) + 0)# 分数越低越好
 		self.improvement_ratio.append(sum(self.new_score_better) / epoch)
 		self.plot2('Generator Loss', 'Discriminator Loss', self.gloss_list, self.dloss_list)
-		self.plot3('Generator Loss', 'Discriminator Loss', 'Improvement Ratio', self.gloss_list, self.dloss_list, self.improvement_ratio)
+		# self.plot3('Generator Loss', 'Discriminator Loss', 'Improvement Ratio', self.gloss_list, self.dloss_list, self.improvement_ratio)
+		self.plot4( 'Improvement Ratio', self.improvement_ratio)
 		self.plot1('New Score Better', self.new_score_better)
 		if epoch < 20: return
 		self.plot_heatmap('Anomaly Scores', 'Prediction', 'Class', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected))
@@ -223,6 +224,19 @@ class GAN_Plotter():
 		ax3.set_ylabel(name3); ax3.spines["right"].set_position(("axes", 1.25))
 		plt.legend(handles=l1+l2+l3, loc=9, bbox_to_anchor=(0.5, 1.25), ncol=2, prop={'size': 7})
 		fig.savefig(self.prefix2 + f'{name1}_{name2}_{name3}.pdf', pad_inches=0)
+		plt.close()
+
+	def plot4(self, name, data, smooth = True, xlabel='Epoch'):
+		if smooth: data = smoother(data,2)
+		fig, ax = plt.subplots(1, 1, figsize=(3,1.9))
+		l = ax.plot(data, '.-', c = 'g', linewidth=0.6, alpha=0.6, label=name)
+		ax.set_xlabel(xlabel); ax.set_ylabel(name); ax.spines["right"].set_position(("axes", 1.25))
+		ax2 = ax.twinx()
+		ax2.set_xlabel(xlabel)
+		ax2.set_ylabel(name)
+		l2 = ax2.plot(data, '.-', c = 'g', linewidth=0.6, alpha=0.6, label=name)
+		plt.legend(handles=l, loc=9, bbox_to_anchor=(0.5, 1.25), ncol=2, prop={'size': 7})
+		fig.savefig(self.prefix2 + f'{name}.pdf', pad_inches=0)
 		plt.close()
 
 	def plot_heatmap(self, title, name1, name2, data1, data2):
