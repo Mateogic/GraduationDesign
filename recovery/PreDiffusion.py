@@ -176,7 +176,7 @@ class PreDiffusionRecovery(Recovery):# 继承关系
                      for i, p in enumerate(prototype)]
         self.gan_plotter.update_class_detected(get_classes(embedding, self.model))
         embedding = torch.stack(embedding)
-        if self.epoch > 20:
+        if self.epoch > 5:
             self.tune_model()# epoch大于20之后在线微调FPE
         # 直接返回恢复决策
         return self.recover_decision(embedding, schedule_data, original_decision)
