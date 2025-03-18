@@ -171,8 +171,9 @@ class GAN_Plotter():
 		# self.epoch += 1
 		self.plot1('New Score Better', self.new_score_better)
 		if epoch < 20: return
-		self.plot_heatmap('Anomaly Scores', 'Prediction', 'Class', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected))
+		self.plot_heatmap('Fault Prediction and Classification', 'Prediction', 'Classification', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected))
 		self.plot_heatmapc('Migrations', 'Migration', 'Hosts from Migration', np.array(self.migrating).reshape(1, -1), np.array(self.hosts_migrated))
+		self.plot_heatmap_combined('Combined', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected), np.array(self.migrating).reshape(1, -1), np.array(self.hosts_migrated))
 	# 在线训练时调用
 	def plot(self, accuracy_list, epoch, ns, os):
 		self.prefix2 = self.prefix + '_' + str(epoch) + '_'
@@ -186,7 +187,7 @@ class GAN_Plotter():
 		self.plot4( 'Improvement Ratio', self.improvement_ratio)
 		self.plot1('New Score Better', self.new_score_better)
 		if epoch < 20: return
-		self.plot_heatmap('Anomaly Scores', 'Prediction', 'Class', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected))
+		self.plot_heatmap('Fault Prediction and Classification', 'Prediction', 'Classification', np.array(self.anomaly_detected).reshape(1, -1), np.array(self.class_detected))
 
 	def plot1(self, name1, data1, smooth = True, xlabel='Epoch'):
 		if smooth: data1 = smoother(data1)
@@ -239,39 +240,295 @@ class GAN_Plotter():
 		fig.savefig(self.prefix2 + f'{name}.pdf', pad_inches=0)
 		plt.close()
 
+
 	def plot_heatmap(self, title, name1, name2, data1, data2):
-		fig, (ax1, ax2) = plt.subplots(2, 1,gridspec_kw={'height_ratios': [0.2, 1]}, figsize=(3,1.5))
+		from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+		# 创建图形和子图
+		fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [0.2, 1], 'hspace': 0.5}, figsize=(3.5, 1.8))
 		ax1.set_title(title)
 		yticks = np.linspace(0, self.n_hosts, 2, dtype=np.int32)
-		h1 = sns.heatmap(data1,cmap="YlGnBu", yticklabels=[0], linewidth=0.01, ax = ax1)
+
+		# 从原始的YlGnBu色彩映射中获取两个颜色点
+		from matplotlib.pyplot import cm
+		ylgnbu = cm.get_cmap('YlGnBu')
+		low_color = ylgnbu(0.99)  # 深蓝
+		high_color = ylgnbu(0.01)  # 黄色
+		# 创建两段式色彩映射
+		two_tone_cmap = LinearSegmentedColormap.from_list('TwoToneYlGnBu',
+														  [(0, low_color),
+														   (0.5, low_color),
+														   (0.501, high_color),
+														   (1, high_color)],
+														  N=256)
+
 		dcmap = LinearSegmentedColormap.from_list('Custom', ['w', 'r', 'g', 'b'], 4)
 		data2 = (data2 + 1).transpose()
-		h2 = sns.heatmap(data2,cmap=dcmap, yticklabels=yticks, linewidth=0.01, ax = ax2, vmin=0, vmax=3)
-		ax1.set_yticks([0]); ax2.set_yticks(yticks)
+
+		# 创建不带colorbar的热图
+		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1, cbar=False)
+		h2 = sns.heatmap(data2, cmap=dcmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2, cbar=False)
+
+		# 为colorbar创建自定义axes
+		# 第一个colorbar axes
+		divider1 = make_axes_locatable(ax1)
+		cax1 = divider1.append_axes("right", size="3%", pad=0.12)
+
+		# 第二个colorbar axes - 确保与第一个相同宽度和对齐
+		divider2 = make_axes_locatable(ax2)
+		cax2 = divider2.append_axes("right", size="3%", pad=0.12)
+
+		# 创建ScalarMappables
+		sm1 = plt.cm.ScalarMappable(cmap=two_tone_cmap, norm=plt.Normalize(vmin=0, vmax=1))
+		sm2 = plt.cm.ScalarMappable(cmap=dcmap, norm=plt.Normalize(vmin=0, vmax=4))
+
+		# 添加colorbar到自定义axes
+		cbar1 = fig.colorbar(sm1, cax=cax1)
+		cbar1.set_ticks([0.25, 0.75])
+		cbar1.set_ticklabels(['0', '1'])
+
+		cbar2 = fig.colorbar(sm2, cax=cax2)
+		cbar2.set_ticks([0.5, 1.5, 2.5, 3.5])
+		cbar2.set_ticklabels(['None', 'CPU', 'RAM', 'Disk'])
+
+		# 设置其他图形属性
+		ax1.set_yticks([0])
+		ax2.set_yticks(yticks)
 		ax2.set_yticklabels(yticks, rotation=0)
-		xticks1 = np.linspace(0, data1.shape[1], 5, dtype=np.int32); xticks2 = np.linspace(0, data2.shape[1], 5, dtype=np.int32)
-		ax1.set_xticks(xticks1); ax2.set_xticks(xticks2); ax2.set_xticklabels(xticks2, rotation=0)
+		xticks1 = np.linspace(0, data1.shape[1], 5, dtype=np.int32)
+		xticks2 = np.linspace(0, data2.shape[1], 5, dtype=np.int32)
+		ax1.set_xticks(xticks1)
+		ax2.set_xticks(xticks2)
+		ax2.set_xticklabels(xticks2, rotation=0)
 		ax1.set_xticklabels(xticks1, rotation=0)
-		ax2.set_xlabel('Timestamp'); ax1.set_ylabel(name1)
-		ax2.set_ylabel(name2); 
-		colorbar = h2.collections[0].colorbar; colorbar.set_ticklabels(['None', 'CPU', 'RAM', 'Disk'])
-		fig.savefig(self.prefix2 + f'{title}_{name1}_{name2}.pdf')
+		ax1.set_xlabel('Interval', labelpad=1)
+		ax2.set_xlabel('Epoch', labelpad=1)
+		ax2.set_ylabel(name2, labelpad=-1)
+		ax1.set_ylabel(name1, labelpad=-1)
+		# 调整y轴标签位置，使其更靠近轴线
+		ax1.yaxis.set_label_coords(-0.05, 0.5)
+		ax2.yaxis.set_label_coords(-0.05, 0.5)
+		fig.align_ylabels([ax1, ax2])
+
+		# 为子图添加边框
+		for spine in ax1.spines.values():
+			spine.set_visible(True)
+			spine.set_color('black')
+			spine.set_linewidth(0.5)
+
+		for spine in ax2.spines.values():
+			spine.set_visible(True)
+			spine.set_color('black')
+			spine.set_linewidth(0.5)
+
+		plt.tight_layout(pad=1.0)
+		fig.savefig(self.prefix2 + f'{title}_{name1}_{name2}.pdf', bbox_inches='tight')
 		plt.close()
 
+
 	def plot_heatmapc(self, title, name1, name2, data1, data2):
-		fig, (ax1, ax2) = plt.subplots(2, 1,gridspec_kw={'height_ratios': [0.2, 1]}, figsize=(3,1.5))
+		from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+		# 创建图形和子图
+		fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [0.2, 1], 'hspace': 0.5}, figsize=(3.5, 1.8))
 		ax1.set_title(title)
 		ax1.set_ylabel(name1)
-		yticks = np.linspace(0, self.n_hosts, 10, dtype=np.int32)
+		yticks = np.linspace(0, self.n_hosts, 2, dtype=np.int32)
 		data2 = data2.transpose()
-		h1 = sns.heatmap(data1,cmap="YlGnBu", yticklabels=[0], linewidth=0.01, ax = ax1)
-		h2 = sns.heatmap(data2,cmap="YlGnBu", yticklabels=yticks, linewidth=0.01, ax = ax2)
-		ax1.set_yticks([0]); ax2.set_yticks(yticks)
+
+		from matplotlib.pyplot import cm
+		ylgnbu = cm.get_cmap('YlGnBu')
+		rdbur = cm.get_cmap('RdBu_r')
+
+		low_color = ylgnbu(0.01)# 黄色
+		high_color = rdbur(0.82)# 橙红
+
+		# 创建两段式色彩映射
+		two_tone_cmap = LinearSegmentedColormap.from_list('TwoToneYlGnBu',
+														  [(0, low_color),
+														   (0.5, low_color),
+														   (0.501, high_color),
+														   (1, high_color)],
+														  N=256)
+
+		# 创建不带colorbar的热图
+		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1, cbar=False)
+		h2 = sns.heatmap(data2, cmap=two_tone_cmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2, cbar=False)
+
+		# 为colorbar创建自定义axes
+		# 第一个colorbar axes
+		divider1 = make_axes_locatable(ax1)
+		cax1 = divider1.append_axes("right", size="3%", pad=0.12)
+
+		# 第二个colorbar axes - 确保与第一个相同宽度和对齐
+		divider2 = make_axes_locatable(ax2)
+		cax2 = divider2.append_axes("right", size="3%", pad=0.12)
+
+		# 创建ScalarMappable
+		sm = plt.cm.ScalarMappable(cmap=two_tone_cmap, norm=plt.Normalize(vmin=0, vmax=1))
+
+		# 添加colorbar到自定义axes
+		cbar1 = fig.colorbar(sm, cax=cax1)
+		cbar1.set_ticks([0.25, 0.75])
+		cbar1.set_ticklabels(['0', '1'])
+
+		cbar2 = fig.colorbar(sm, cax=cax2)
+		cbar2.set_ticks([0.25, 0.75])
+		cbar2.set_ticklabels(['0', '1'])
+
+		# 设置其他图形属性
+		ax1.set_yticks([0]);
+		ax2.set_yticks(yticks)
 		ax2.set_yticklabels(yticks, rotation=0)
-		xticks1 = np.linspace(0, data1.shape[1], 5, dtype=np.int32); xticks2 = np.linspace(0, data2.shape[1], 5, dtype=np.int32)
-		ax1.set_xticks(xticks1); ax2.set_xticks(xticks2); ax2.set_xticklabels(xticks2, rotation=0)
+		xticks1 = np.linspace(0, data1.shape[1], 5, dtype=np.int32);
+		xticks2 = np.linspace(0, data2.shape[1], 5, dtype=np.int32)
+		ax1.set_xticks(xticks1)
+		ax2.set_xticks(xticks2)
+		ax2.set_xticklabels(xticks2, rotation=0)
 		ax1.set_xticklabels(xticks1, rotation=0)
-		ax2.set_xlabel('Timestamp'); ax1.set_ylabel(name1)
-		ax2.set_ylabel(name2); 
-		fig.savefig(self.prefix2 + f'{title}_{name1}_{name2}.pdf')
+		ax2.set_xlabel('Epoch', labelpad=1)
+		ax2.set_ylabel(name2, labelpad=-1)
+		ax1.set_ylabel(name1, labelpad=-1)
+		# 调整y轴标签位置，使其更靠近轴线
+		ax1.yaxis.set_label_coords(-0.05, 0.5)
+		ax2.yaxis.set_label_coords(-0.05, 0.5)
+		fig.align_ylabels([ax1, ax2])
+
+		# 为子图添加边框
+		for spine in ax1.spines.values():
+			spine.set_visible(True)
+			spine.set_color('black')
+			spine.set_linewidth(0.5)
+
+		for spine in ax2.spines.values():
+			spine.set_visible(True)
+			spine.set_color('black')
+			spine.set_linewidth(0.5)
+
+		plt.tight_layout(pad=1.0)
+		fig.savefig(self.prefix2 + f'{title}_{name1}_{name2}.pdf', bbox_inches='tight')
+		plt.close()
+
+	def plot_heatmap_combined(self, title, data1_anomaly, data2_class, data1_migration, data2_hosts):
+		from mpl_toolkits.axes_grid1 import make_axes_locatable
+		import matplotlib.gridspec as gridspec
+
+		# Create figure with more space
+		fig = plt.figure(figsize=(3.5, 6.5))
+
+		# 创建外层GridSpec，调整第一个和第二个部分之间的间距
+		outer_gs = gridspec.GridSpec(2, 1, height_ratios=[0.2, 1.8], hspace=0.15)
+
+		# 创建内层GridSpec
+		upper_gs = gridspec.GridSpecFromSubplotSpec(1, 1, subplot_spec=outer_gs[0])
+		
+		# 对下半部分保持0.2的间距
+		lower_gs = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_gs[1],
+												height_ratios=[0.8, 0.2, 0.8], hspace=0.2)
+
+		# Create four subplots
+		ax1 = plt.subplot(upper_gs[0])  # First row - anomaly detection
+		ax2 = plt.subplot(lower_gs[0])  # Second row - class prediction
+		ax3 = plt.subplot(lower_gs[1])  # Third row - migration decision
+		ax4 = plt.subplot(lower_gs[2])  # Fourth row - migration hosts
+
+		# Rest of the code remains the same until labels...
+		yticks = np.linspace(0, self.n_hosts, 2, dtype=np.int32)
+
+		from matplotlib.pyplot import cm
+		ylgnbu = cm.get_cmap('YlGnBu')
+		rdbur = cm.get_cmap('RdBu_r')
+
+		low_color = rdbur(0.05)# 深蓝
+		mid_color = ylgnbu(0.01)# 黄色
+		high_color = rdbur(0.82)# 橙红
+
+		two_tone_cmap1 = LinearSegmentedColormap.from_list('TwoToneYlGnBu',
+														  [(0, low_color),
+														   (0.5, low_color),
+														   (0.501, mid_color),
+														   (1, mid_color)],
+														  N=256)
+		two_tone_cmap2 = LinearSegmentedColormap.from_list('TwoToneYlGnBu',
+														  [(0, mid_color),
+														   (0.5, mid_color),
+														   (0.501, high_color),
+														   (1, high_color)],
+														  N=256)
+		dcmap = LinearSegmentedColormap.from_list('Custom', ['w', 'r', 'g', 'b'], 4)
+
+		data2_class = (data2_class + 1).transpose()
+		data2_hosts = data2_hosts.transpose()
+
+		h1 = sns.heatmap(data1_anomaly, cmap=two_tone_cmap1, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1,
+						 cbar=False)
+		h2 = sns.heatmap(data2_class, cmap=dcmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2,
+						 cbar=False)
+		h3 = sns.heatmap(data1_migration, cmap=two_tone_cmap2, yticklabels=[0], linewidths=0.02, linecolor='black',
+						 ax=ax3, cbar=False)
+		h4 = sns.heatmap(data2_hosts, cmap=two_tone_cmap2, yticklabels=yticks, linewidths=0.02, linecolor='black',
+						 ax=ax4, cbar=False)
+
+		# 创建colorbar
+		for ax, subplot_cmap, vmax, tickpos, ticklabels in [
+			(ax1, two_tone_cmap1, 1, [0.25, 0.75], ['0', '1']),
+			(ax2, dcmap, 4, [0.5, 1.5, 2.5, 3.5], ['None', 'CPU', 'RAM', 'Disk']),
+			(ax3, two_tone_cmap2, 1, [0.25, 0.75], ['0', '1']),
+			(ax4, two_tone_cmap2, 1, [0.25, 0.75], ['0', '1'])
+		]:
+			divider = make_axes_locatable(ax)
+			cax = divider.append_axes("right", size="3%", pad=0.08)
+			sm = plt.cm.ScalarMappable(cmap=subplot_cmap, norm=plt.Normalize(vmin=0, vmax=vmax))
+			cbar = fig.colorbar(sm, cax=cax)
+			cbar.set_ticks(tickpos)
+			cbar.set_ticklabels(ticklabels)
+
+		# 设置刻度和标签
+		ax1.set_yticks([0])
+		xticks1 = np.linspace(0, data1_anomaly.shape[1], 5, dtype=np.int32)
+		ax1.set_xticks(xticks1)
+		ax1.set_xticklabels(xticks1, rotation=0)
+		# Set xlabel position explicitly to avoid overlap
+		ax1.set_xlabel('Interval')
+		ax1.xaxis.set_label_coords(0.5, -0.4)  # Adjust this value as needed
+
+		ax2.set_yticks(yticks)
+		ax2.set_yticklabels(yticks, rotation=0)
+		xticks2 = np.linspace(0, data2_class.shape[1], 5, dtype=np.int32)
+		ax2.set_xticks(xticks2)
+		ax2.set_xticklabels(xticks2, rotation=0)
+		ax2.set_xlabel('')  # 第二个子图不显示xlabel
+
+		ax3.set_yticks([0])
+		xticks3 = np.linspace(0, data1_migration.shape[1], 5, dtype=np.int32)
+		ax3.set_xticks(xticks3)
+		ax3.set_xticklabels(xticks3, rotation=0)
+		ax3.set_xlabel('')
+
+		ax4.set_yticks(yticks)
+		ax4.set_yticklabels(yticks, rotation=0)
+		xticks4 = np.linspace(0, data2_hosts.shape[1], 5, dtype=np.int32)
+		ax4.set_xticks(xticks4)
+		ax4.set_xticklabels(xticks4, rotation=0)
+		ax4.set_xlabel('Epoch', labelpad=1)
+
+		# 设置y轴标签
+		ax1.set_ylabel('Prediction', labelpad=-1)
+		ax2.set_ylabel('Fault Class for each Host', labelpad=-1)
+		ax3.set_ylabel('Migration', labelpad=-1)
+		ax4.set_ylabel('Hosts from Migration', labelpad=-1)
+
+		# 调整y轴标签位置
+		for ax in [ax1, ax2, ax3, ax4]:
+			ax.yaxis.set_label_coords(-0.03, 0.5)
+
+		# 添加边框
+		for ax in [ax1, ax2, ax3, ax4]:
+			for spine in ax.spines.values():
+				spine.set_visible(True)
+				spine.set_color('black')
+				spine.set_linewidth(0.5)
+
+		plt.tight_layout(pad=0.5, rect=[0, 0, 1, 0.95])
+		fig.savefig(self.prefix2 + f'{title}_Combined.pdf', bbox_inches='tight')
 		plt.close()
