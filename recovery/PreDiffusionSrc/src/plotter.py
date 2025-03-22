@@ -14,8 +14,8 @@ plt.rcParams['figure.figsize'] = 6, 2
 os.makedirs(plot_folder, exist_ok=True)
 
 def smoother(y, box_pts=1):# box_pts参数调节平滑程度，越大越平滑
-    box = np.ones(box_pts)/box_pts
-    y_smooth = np.convolve(y, box, mode='same')# mode=same会出现边界效应
+	box = np.ones(box_pts)/box_pts
+	y_smooth = np.convolve(y, box, mode='same')# mode=same会出现边界效应
 	# y = np.array(y)  # Convert to numpy array if it's not already
 	# If box_pts is 1 or less, or if the input is too short, return the original data
 	# if box_pts <= 1 or len(y) < box_pts:
@@ -31,7 +31,7 @@ def smoother(y, box_pts=1):# box_pts参数调节平滑程度，越大越平滑
 	# # Create the kernel and apply convolution
 	# box = np.ones(box_pts) / box_pts
 	# y_smooth = np.convolve(y_padded, box, mode='valid')
-    return y_smooth
+	return y_smooth
 
 
 class Model_Plotter():
@@ -112,7 +112,7 @@ class Model_Plotter():
 		yticks = np.linspace(0, self.n_hosts, 4, dtype=np.int32)
 		h1 = sns.heatmap(data1.transpose(),cmap="YlGnBu", yticklabels=yticks, linewidth=0.01, ax = ax1)
 		h2 = sns.heatmap(data2.transpose(),cmap="YlGnBu", yticklabels=yticks, linewidth=0.01, ax = ax2)
-		ax1.set_yticks(yticks); ax2.set_yticks(yticks); 
+		ax1.set_yticks(yticks); ax2.set_yticks(yticks);
 		xticks = np.linspace(0, data1.shape[0]-2, 5, dtype=np.int32)
 		ax1.set_xticks(xticks); ax2.set_xticks(xticks); ax2.set_xticklabels(xticks, rotation=0)
 		ax1.set_xticklabels(xticks, rotation=0)
@@ -160,7 +160,7 @@ class GAN_Plotter():
 
 	def new_better(self, new_better):# new_better=1表示新决策更好，否则为0
 		# self.new_score_better.append(new_better + 0)# +0用于将bool类型转换为int类型
-		if not new_better: 
+		if not new_better:
 			self.hosts_migrated.append([0] * int(self.gname.split('_')[1]))
 			self.migrating.append(0)
 	# 新决策更好时调用
@@ -252,7 +252,7 @@ class GAN_Plotter():
 		# 从原始的YlGnBu色彩映射中获取两个颜色点
 		from matplotlib.pyplot import cm
 		ylgnbu = cm.get_cmap('YlGnBu')
-		low_color = ylgnbu(0.99)  # 深蓝
+		low_color = ylgnbu(0.95)  # 深蓝
 		high_color = ylgnbu(0.01)  # 黄色
 		# 创建两段式色彩映射
 		two_tone_cmap = LinearSegmentedColormap.from_list('TwoToneYlGnBu',
@@ -266,8 +266,8 @@ class GAN_Plotter():
 		data2 = (data2 + 1).transpose()
 
 		# 创建不带colorbar的热图
-		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1, cbar=False)
-		h2 = sns.heatmap(data2, cmap=dcmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2, cbar=False)
+		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1, cbar=False, vmin=0, vmax=1)
+		h2 = sns.heatmap(data2, cmap=dcmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2, cbar=False, vmin=0, vmax=3)
 
 		# 为colorbar创建自定义axes
 		# 第一个colorbar axes
@@ -352,8 +352,10 @@ class GAN_Plotter():
 														  N=256)
 
 		# 创建不带colorbar的热图
-		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1, cbar=False)
-		h2 = sns.heatmap(data2, cmap=two_tone_cmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2, cbar=False)
+		h1 = sns.heatmap(data1, cmap=two_tone_cmap, yticklabels=[0], linewidths=0.02, linecolor='black',
+						 ax=ax1, cbar=False, vmin=0, vmax=1)
+		h2 = sns.heatmap(data2, cmap=two_tone_cmap, yticklabels=yticks, linewidths=0.02, linecolor='black',
+						 ax=ax2, cbar=False, vmin=0, vmax=1)
 
 		# 为colorbar创建自定义axes
 		# 第一个colorbar axes
@@ -421,7 +423,7 @@ class GAN_Plotter():
 
 		# 创建内层GridSpec
 		upper_gs = gridspec.GridSpecFromSubplotSpec(1, 1, subplot_spec=outer_gs[0])
-		
+
 		# 对下半部分保持0.2的间距
 		lower_gs = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=outer_gs[1],
 												height_ratios=[0.8, 0.2, 0.8], hspace=0.2)
@@ -461,13 +463,13 @@ class GAN_Plotter():
 		data2_hosts = data2_hosts.transpose()
 
 		h1 = sns.heatmap(data1_anomaly, cmap=two_tone_cmap1, yticklabels=[0], linewidths=0.02, linecolor='black', ax=ax1,
-						 cbar=False)
+						 cbar=False, vmin=0, vmax=1)
 		h2 = sns.heatmap(data2_class, cmap=dcmap, yticklabels=yticks, linewidths=0.02, linecolor='black', ax=ax2,
-						 cbar=False)
+						 cbar=False, vmin=0, vmax=3)
 		h3 = sns.heatmap(data1_migration, cmap=two_tone_cmap2, yticklabels=[0], linewidths=0.02, linecolor='black',
-						 ax=ax3, cbar=False)
+						 ax=ax3, cbar=False, vmin=0, vmax=1)
 		h4 = sns.heatmap(data2_hosts, cmap=two_tone_cmap2, yticklabels=yticks, linewidths=0.02, linecolor='black',
-						 ax=ax4, cbar=False)
+						 ax=ax4, cbar=False, vmin=0, vmax=1)
 
 		# 创建colorbar
 		for ax, subplot_cmap, vmax, tickpos, ticklabels in [
