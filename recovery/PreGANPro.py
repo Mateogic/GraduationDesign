@@ -32,10 +32,6 @@ class PreGANProRecovery(Recovery):# 继承关系
             load_model(model_pro_folder, f'{self.env_name}_{self.model_name}.ckpt', self.model_name)
         # Train the model if not trained (offline training same as PreGAN)
         if self.epoch == -1: self.train_model()
-        # Freeze encoder
-        freeze(self.model)
-        # Reduce lr of encoder
-        # self.model.lr /= 5
         # Load generator and discriminator
         self.gen, self.disc, self.gopt, self.dopt, self.epoch, self.accuracy_list = \
             load_gan(model_pro_folder, f'{self.env_name}_{self.gen_name}.ckpt', f'{self.env_name}_{self.disc_name}.ckpt', self.gen_name, self.disc_name)
@@ -74,14 +70,18 @@ class PreGANProRecovery(Recovery):# 继承关系
         probs = self.disc(schedule_data, new_schedule_data.detach())
         new_score, orig_score = run_simulation(self.env.stats, new_schedule_data), run_simulation(self.env.stats, schedule_data)
         true_probs = torch.tensor([0, 1], dtype=torch.double) if new_score <= orig_score else torch.tensor([1, 0], dtype=torch.double)
-        disc_loss = self.ganloss(probs, true_probs.detach().clone())
+        disc_loss = self.ganloss(probs, true_probs.detach().clone())# 确保梯度不会流向标签
         disc_loss.backward(); self.dopt.step()
+        # 冻结disc，避免梯度传播
+        freeze(self.disc)
         # Train generator
         self.gen.zero_grad()
         probs = self.disc(schedule_data, new_schedule_data)
         true_probs = torch.tensor([0, 1], dtype=torch.double) # to enforce new schedule is better than original schedule
         gen_loss = self.ganloss(probs, true_probs)
         gen_loss.backward(); self.gopt.step()
+        # 解冻disc
+        unfreeze(self.disc)
         # Append to accuracy list and save model
         if self.save_gan:
             self.epoch += 1; self.accuracy_list.append((gen_loss.item(), disc_loss.item()))
@@ -95,12 +95,6 @@ class PreGANProRecovery(Recovery):# 继承关系
         probs = self.disc(schedule_data, new_schedule_data)# D = Disc(S,N)
         self.gan_plotter.new_better(probs[1] >= probs[0])
         if probs[0] > probs[1]: # original better
-            # 解冻FPE模型
-            unfreeze(self.model)
-            # 执行微调
-            self.tune_model()
-            # 重新冻结FPE模型
-            freeze(self.model)
             return original_decision
         # Form new decision
         host_alloc = []; container_alloc = [-1] * len(self.env.hostlist)
@@ -165,5 +159,6 @@ class PreGANProRecovery(Recovery):# 继承关系
         # Pass through GAN self.epoch+=1(预测有故障时)
         self.train_gan(embedding, schedule_data)# Epoch 76,       GLoss = 0.23239809802868833,    DLoss = 0.23744803135508769
         # Tune Model
-        # self.tune_model()# 每次预测到故障均执行在线微调
+        if self.epoch > 5:# 50个epoch之后开始微调，确保GAN相对收敛
+            self.tune_model()
         return self.recover_decision(embedding, schedule_data, original_decision)# 在线推理
