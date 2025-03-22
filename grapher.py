@@ -73,7 +73,7 @@ Colors = ['red', 'blue', 'green', 'orange', 'magenta', 'pink', 'cyan', 'maroon',
 apps = ['yolo', 'pocketsphinx', 'aeneas']
 
 yLabelsStatic = ['Average Interval Energy (Kilowatt-hr)', 'Average Response Time (seconds)', 'Average CPU Utilization (%)',\
-				 'Average RAM Utilization (%)', 'Interval Allocation Time (seconds)', 'Number of Task migrations',\
+				 'Average RAM Utilization (%)', 'Interval Allocation Time (seconds)', 'Number of Task migrations','Number of completed tasks',\
 				 'Fraction of total SLA Violations', 'Fraction of SLA Violations per application', 'Number of completed tasks per application']
 # yLabelsStatic = ['Total Energy (Kilowatt-hr)', 'Average Energy (Kilowatt-hr)', 'Interval Energy (Kilowatt-hr)', 'Average Interval Energy (Kilowatt-hr)',\
 # 	'Number of completed tasks', 'Number of completed tasks per interval', 'Average Response Time (seconds)', 'Total Response Time (seconds)',\
@@ -655,12 +655,12 @@ for ylabel in yLabelsStatic:
 
 print(color.BOLD+"Creating Combined Box Plots"+color.ENDC)
 
-# 要绘制的四个指标
+# 要绘制的四个指标 - 修改第四个指标
 combined_metrics = [
-	'Average Interval Energy (Kilowatt-hr)', 
-	'Average Response Time (seconds)',
-	'Average CPU Utilization (%)',
-	'Average RAM Utilization (%)'
+    'Average Interval Energy (Kilowatt-hr)', 
+    'Average Response Time (seconds)',
+    'Average CPU Utilization (%)',
+    'Number of completed tasks'  # 修改为任务完成数
 ]
 
 # 创建2x2的子图
@@ -670,54 +670,73 @@ axes = axes.flatten()
 # 首先确保我们有正确的数据 - 重新处理关键指标的数据
 combined_data = {}
 for ylabel in combined_metrics:
-	combined_data[ylabel] = {}
-	for model in Models:
-		stats = all_stats[model]
-		if ylabel == 'Average Interval Energy (Kilowatt-hr)':
-			d = np.array([i['energytotalinterval'] for i in stats.metrics])/1000 if stats else np.array([0])
-			d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
-			# 使用与单独箱线图相同的处理方式
-			combined_data[ylabel][model] = d[d2>0]/d2[d2>0] if len(d[d2>0]) > 0 else np.array([0])
-		elif ylabel == 'Average Response Time (seconds)':
-			# 对响应时间使用与单独箱线图相同的处理方式
-			d = np.array([max(0, i['avgresponsetime']) for i in stats.metrics]) if stats else np.array([0])
-			d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
-			combined_data[ylabel][model] = d[d2>0] if len(d[d2>0]) > 0 else np.array([0])
-		else:
-			# 对于其他指标，直接使用原始数据
-			combined_data[ylabel][model] = Data[ylabel][model]
+    combined_data[ylabel] = {}
+    for model in Models:
+        stats = all_stats[model]
+        if ylabel == 'Average Interval Energy (Kilowatt-hr)':
+            d = np.array([i['energytotalinterval'] for i in stats.metrics])/1000 if stats else np.array([0])
+            d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
+            # 使用与单独箱线图相同的处理方式
+            combined_data[ylabel][model] = d[d2>0]/d2[d2>0] if len(d[d2>0]) > 0 else np.array([0])
+        elif ylabel == 'Average Response Time (seconds)':
+            # 对响应时间使用与单独箱线图相同的处理方式
+            d = np.array([max(0, i['avgresponsetime']) for i in stats.metrics]) if stats else np.array([0])
+            d2 = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([1])
+            combined_data[ylabel][model] = d[d2>0] if len(d[d2>0]) > 0 else np.array([0])
+        elif ylabel == 'Number of completed tasks':
+            # 获取所有完成任务的总数
+            d = np.array([i['numdestroyed'] for i in stats.metrics]) if stats else np.array([0])
+            combined_data[ylabel][model] = np.sum(d)  # 存储总和而非数组
+        else:
+            # 对于其他指标，直接使用原始数据
+            combined_data[ylabel][model] = Data[ylabel][model]
 
 # 子图标签
 subplot_labels = ['(a)', '(b)', '(c)', '(d)']
 
 for i, ylabel in enumerate(combined_metrics):
-	if Models[0] not in combined_data[ylabel]: 
-		continue
-	
-	ax = axes[i]
-	values = [combined_data[ylabel][model] for model in Models]
-	
-	# 绘制箱线图，保持统一样式
-	bp = ax.boxplot(values, positions=np.arange(len(values)), notch=False, 
-				showmeans=True, widths=0.65, 
-				meanprops=dict(marker='.', markeredgecolor='black', markerfacecolor='black'), 
-				showfliers=False)
-	
-	# 确保响应时间图的y轴从0开始
-	if ylabel == 'Average Response Time (seconds)':
-		ax.set_ylim(bottom=0)
-	
+    if Models[0] not in combined_data[ylabel]: 
+        continue
+    
+    ax = axes[i]
+    
+    if ylabel == 'Number of completed tasks':
+        # 对于任务完成数使用条形图
+        values = [combined_data[ylabel][model] for model in Models]
+        ax.bar(np.arange(len(values)), values, color=Colors[:len(values)], 
+               width=0.65, alpha=0.8, edgecolor='black', linewidth=1)
+        
+        # 设置y轴的范围为0-300
+        ax.set_ylim(0, 300)
+        
+        # 添加数值标签（调整位置以确保在图表内可见）
+        for j, v in enumerate(values):
+            # 如果值大于280，在条形内部显示数值
+            if v > 280:
+                ax.text(j, v * 0.9, str(int(v)), ha='center', fontsize=8)
+            else:
+                ax.text(j, v + 5, str(int(v)), ha='center', fontsize=8)
+    else:
+        # 对于其他指标使用箱线图
+        values = [combined_data[ylabel][model] for model in Models]
+        bp = ax.boxplot(values, positions=np.arange(len(values)), notch=False, 
+                    showmeans=True, widths=0.65, 
+                    meanprops=dict(marker='.', markeredgecolor='black', markerfacecolor='black'), 
+                    showfliers=False)
+    
+    # 确保响应时间图的y轴从0开始
+    if ylabel == 'Average Response Time (seconds)':
+        ax.set_ylim(bottom=0)
 
-	ax.set_xlabel(f'{subplot_labels[i]}')
-	ax.set_xticks(range(len(values)))
-	ax.set_xticklabels(Models, rotation=rot)
-
-	
-	# 设置y轴标签
-	ax.set_ylabel(ylabel.replace('%', '\%').replace('SLA', 'SLO'))
-	
-	# 添加网格线以提高可读性
-	ax.grid(axis='y', linestyle='--', alpha=0.3)
+    ax.set_xlabel(f'{subplot_labels[i]}')
+    ax.set_xticks(range(len(Models)))
+    ax.set_xticklabels(Models, rotation=rot)
+    
+    # 设置y轴标签
+    ax.set_ylabel(ylabel.replace('%', '\%').replace('SLA', 'SLO'))
+    
+    # 添加网格线以提高可读性
+    ax.grid(axis='y', linestyle='--', alpha=0.3)
 
 plt.tight_layout()
 plt.savefig(SAVE_PATH+'Combined_Box_Plots.pdf')

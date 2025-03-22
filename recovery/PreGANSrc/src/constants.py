@@ -20,5 +20,5 @@ LATEST_WINDOW_SIZE = 10# 滑动窗口长度k
 
 # GAN parameters
 # 源代码是0.8 0.2 此处根据论文修改为0.5 0.5
-Coeff_Energy = 0.8# 平均能耗的加权系数\beta
-Coeff_Latency = 0.2# 平均延迟的加权系数1-\beta
+Coeff_Energy = 0.05# 平均能耗的加权系数\beta
+Coeff_Latency = 0.95# 平均延迟的加权系数1-\beta
