@@ -40,14 +40,10 @@ class PreDiffusionRecovery(Recovery):# 继承关系
         print(f"正在加载Diffusion模型: {self.env_name}_Diffusion_{self.hosts}.ckpt")
         self.gen, _, self.gopt, _, self.diff_epoch, self.diff_accuracy_list = \
             load_diffusion_model(model_folder, f'{self.env_name}_Diffusion_{self.hosts}.ckpt', f'Diffusion_{self.hosts}')
-        
         # 确保模型处于评估模式
         self.gen.eval()
-        
         # 初始化绘图工具
         self.gan_plotter = GAN_Plotter(self.env_name, self.model_name, 'Diffusion', self.training)
-        # # GAN is always tuned
-        # self.ganloss = nn.BCELoss()
         # 加载time_series.npy
         self.train_time_data = load_npyfile(os.path.join(data_folder, self.env_name), data_filename)
 
@@ -126,7 +122,7 @@ class PreDiffusionRecovery(Recovery):# 继承关系
                 decision_dict[cid] = new_host
                 hosts_from[container_alloc[cid]] = 1
         
-        self.gan_plotter.plot_test(hosts_from, self.epoch)
+        self.gan_plotter.plot_test(hosts_from, self.epoch)# 模拟器认为新决策更好时画图
         return list(decision_dict.items())
 
     def run_encoder(self, schedule_data):

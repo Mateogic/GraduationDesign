@@ -118,7 +118,7 @@ class PreGANProRecovery(Recovery):# 继承关系
             if container_alloc[cid] != new_host: # cid对应容器原本部署的主机与新的目标主机不一致，新增迁移条目(cid,new_host)到decision_dict
                 decision_dict[cid] = new_host
                 hosts_from[container_alloc[cid]] = 1
-        self.gan_plotter.plot_test(hosts_from, self.epoch)
+        self.gan_plotter.plot_test(hosts_from, self.epoch)# 判别器认为新决策更好时画图
         return list(decision_dict.items())
 
     def run_encoder(self, schedule_data):
